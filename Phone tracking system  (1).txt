@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>📍 Phone Tracker · Live Location Share</title>
+    <!-- Google Maps API -->
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB41DRUbKWJHPxaFjMAwdrzWzbVKartNGg&callback=initMap&libraries=geometry" async defer></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            min-height: 100vh;
+            padding: 16px;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+
+        .header p {
+            opacity: 0.7;
+            font-size: 0.8rem;
+            margin-top: 5px;
+        }
+
+        /* Cards */
+        .card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            border-radius: 24px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        /* Code Display */
+        .code-box {
+            background: #0a0a1a;
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            border: 2px solid #00ff88;
+        }
+
+        .code-number {
+            font-size: 2.5rem;
+            font-family: monospace;
+            letter-spacing: 8px;
+            font-weight: bold;
+            color: #00ff88;
+            word-break: break-all;
+        }
+
+        .copy-btn {
+            background: #00ff88;
+            color: #1a1a2e;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 40px;
+            margin-top: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* Input Group */
+        .input-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .input-group input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid #00aaff;
+            padding: 14px;
+            border-radius: 40px;
+            color: white;
+            font-size: 1rem;
+            text-align: center;
+            letter-spacing: 2px;
+            font-family: monospace;
+        }
+
+        .input-group button {
+            background: #00aaff;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 40px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* Map Container */
+        .map-container {
+            width: 100%;
+            height: 400px;
+            border-radius: 20px;
+            overflow: hidden;
+            margin-top: 15px;
+            border: 2px solid #00ff88;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Status */
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            border-radius: 50px;
+            background: rgba(0, 0, 0, 0.4);
+            margin-top: 15px;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: gray;
+            animation: pulse 1.5s infinite;
+        }
+
+        .status-dot.active {
+            background: #00ff88;
+            box-shadow: 0 0 10px #00ff88;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .location-info {
+            font-size: 0.8rem;
+            margin-top: 10px;
+            text-align: center;
+            color: #aaaaff;
+        }
+
+        /* Toggle Switch */
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+
+        .toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+
+        .toggle-label input {
+            width: 50px;
+            height: 24px;
+            appearance: none;
+            background: #333;
+            border-radius: 24px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .toggle-label input:checked {
+            background: #00ff88;
+        }
+
+        .toggle-label input::before {
+            content: '';
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            top: 2px;
+            left: 3px;
+            transition: 0.2s;
+        }
+
+        .toggle-label input:checked::before {
+            left: 27px;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            font-size: 0.7rem;
+            opacity: 0.5;
+            margin-top: 20px;
+        }
+
+        button {
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            transform: scale(1.02);
+            opacity: 0.9;
+        }
+
+        .danger-btn {
+            background: #ff4444;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📍 PhoneTracker</h1>
+            <p>Live location sharing between phones</p>
+        </div>
+
+        <!-- MODE 1: PHONE A (Broadcaster - Jo phone track hona hai) -->
+        <div class="card" id="broadcasterCard">
+            <div class="card-title">
+                <span>📡</span> PHONE A · Share My Location
+            </div>
+            <div class="code-box">
+                <div style="font-size: 0.8rem; opacity: 0.7; margin-bottom: 8px;">YOUR UNIQUE CODE</div>
+                <div class="code-number" id="uniqueCode">------</div>
+                <button class="copy-btn" id="copyCodeBtn">📋 Copy Code</button>
+            </div>
+            <div class="toggle-switch" style="margin-top: 20px;">
+                <span>📍 Live Location Sharing</span>
+                <label class="toggle-label">
+                    <input type="checkbox" id="locationToggle">
+                    <span style="margin-left: 8px;">OFF/ON</span>
+                </label>
+            </div>
+            <div class="status" id="broadcasterStatus">
+                <div class="status-dot" id="broadcasterDot"></div>
+                <span id="broadcasterStatusText">Waiting for permission...</span>
+            </div>
+            <div class="location-info" id="broadcasterLocationInfo">-</div>
+            <button class="danger-btn" id="stopSharingBtn" style="background: #ff4444; width: 100%; padding: 12px; border-radius: 40px; margin-top: 10px;">🛑 Stop Sharing</button>
+        </div>
+
+        <!-- MODE 2: PHONE B (Tracker - Jo doosre phone ki location dekhta hai) -->
+        <div class="card" id="trackerCard">
+            <div class="card-title">
+                <span>🕵️</span> PHONE B · Track Phone A
+            </div>
+            <div class="input-group">
+                <input type="text" id="trackCodeInput" placeholder="Enter 6-digit code" maxlength="6">
+                <button id="startTrackingBtn">🔍 Start Tracking</button>
+            </div>
+            <div class="map-container" id="mapContainer" style="display: none;">
+                <div id="map"></div>
+            </div>
+            <div class="status" id="trackerStatus">
+                <div class="status-dot" id="trackerDot"></div>
+                <span id="trackerStatusText">Enter code to track</span>
+            </div>
+            <div class="location-info" id="trackerLocationInfo"></div>
+            <button id="stopTrackingBtn" style="background: #ff4444; width: 100%; padding: 12px; border-radius: 40px; margin-top: 10px; display: none;">⛔ Stop Tracking</button>
+        </div>
+
+        <div class="footer">
+            ⚡ Phone A shares location · Phone B enters code to see live location on Google Maps
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // COMPLETE PHONE TRACKER SYSTEM
+        // Phone A generates code, shares location
+        // Phone B enters code, sees live location on Google Maps
+        // Uses localStorage + cross-tab sync
+        // No external server needed - works entirely in browser
+        // ============================================
+        
+        let map = null;
+        let marker = null;
+        let watchId = null;
+        let isSharing = false;
+        let currentCode = null;
+        let trackingInterval = null;
+        let isTracking = false;
+        let currentTrackingCode = null;
+        
+        // Generate random 6-digit code
+        function generateCode() {
+            return Math.floor(100000 + Math.random() * 900000).toString();
+        }
+        
+        // Initialize - check if code exists in localStorage
+        function init() {
+            // Try to load existing sharing session
+            const savedCode = localStorage.getItem('phoneTracker_code');
+            const savedSharing = localStorage.getItem('phoneTracker_sharing');
+            
+            if (savedCode && savedSharing === 'true') {
+                currentCode = savedCode;
+                document.getElementById('uniqueCode').innerText = currentCode;
+                isSharing = true;
+                document.getElementById('locationToggle').checked = true;
+                startLocationSharing();
+            } else {
+                // Generate new code
+                currentCode = generateCode();
+                document.getElementById('uniqueCode').innerText = currentCode;
+                localStorage.setItem('phoneTracker_code', currentCode);
+            }
+            
+            // Check if we're currently tracking something
+            const trackingCode = localStorage.getItem('phoneTracker_trackingCode');
+            if (trackingCode) {
+                document.getElementById('trackCodeInput').value = trackingCode;
+                startTracking(trackingCode);
+            }
+            
+            // Set up listeners for cross-tab sync
+            window.addEventListener('storage', (e) => {
+                if (e.key === 'phoneTracker_location_' + currentTrackingCode) {
+                    // New location data available
+                    if (isTracking && currentTrackingCode) {
+                        const locationData = JSON.parse(e.newValue);
+                        if (locationData && locationData.lat) {
+                            updateMapLocation(locationData.lat, locationData.lng);
+                            updateTrackerStatus(locationData);
+                        }
+                    }
+                }
+                if (e.key === 'phoneTracker_sharing') {
+                    // Sharing status changed
+                    if (e.newValue === 'false') {
+                        if (isTracking) {
+                            updateTrackerStatusText('Phone A stopped sharing location');
+                            if (marker) marker.setMap(null);
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Start sharing location from Phone A
+        function startLocationSharing() {
+            if (!navigator.geolocation) {
+                alert("Your browser doesn't support geolocation");
+                return false;
+            }
+            
+            // Update status
+            document.getElementById('broadcasterDot').classList.add('active');
+            document.getElementById('broadcasterStatusText').innerHTML = '📍 Sharing live location...';
+            
+            // Watch position continuously
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const accuracy = position.coords.accuracy;
+                    const timestamp = new Date().toLocaleTimeString();
+                    
+                    // Save location to localStorage with current code as key
+                    const locationData = {
+                        lat: lat,
+                        lng: lng,
+                        accuracy: accuracy,
+                        timestamp: timestamp,
+                        lastUpdate: Date.now()
+                    };
+                    
+                    localStorage.setItem('phoneTracker_location_' + currentCode, JSON.stringify(locationData));
+                    localStorage.setItem('phoneTracker_lastLocation', JSON.stringify(locationData));
+                    
+                    // Update UI
+                    document.getElementById('broadcasterLocationInfo').innerHTML = 
+                        `📍 Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}<br>🕐 Updated: ${timestamp} | Accuracy: ${Math.round(accuracy)}m`;
+                    
+                    // Also save that sharing is active
+                    localStorage.setItem('phoneTracker_sharing', 'true');
+                    localStorage.setItem('phoneTracker_code', currentCode);
+                },
+                (error) => {
+                    console.error("Geolocation error:", error);
+                    let errorMsg = "Location error: ";
+                    switch(error.code) {
+                        case 1: errorMsg += "Permission denied. Please allow location access."; break;
+                        case 2: errorMsg += "Position unavailable."; break;
+                        case 3: errorMsg += "Timeout. Check GPS signal."; break;
+                        default: errorMsg += error.message;
+                    }
+                    document.getElementById('broadcasterStatusText').innerHTML = errorMsg;
+                    document.getElementById('broadcasterDot').classList.remove('active');
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
+                }
+            );
+            
+            return true;
+        }
+        
+        // Stop sharing location
+        function stopLocationSharing() {
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            
+            isSharing = false;
+            document.getElementById('locationToggle').checked = false;
+            document.getElementById('broadcasterDot').classList.remove('active');
+            document.getElementById('broadcasterStatusText').innerHTML = '❌ Location sharing stopped';
+            document.getElementById('broadcasterLocationInfo').innerHTML = '-';
+            
+            // Clear sharing flag
+            localStorage.setItem('phoneTracker_sharing', 'false');
+            // Remove location data
+            if (currentCode) {
+                localStorage.removeItem('phoneTracker_location_' + currentCode);
+            }
+        }
+        
+        // Initialize Google Map
+        function initMap() {
+            const defaultLocation = { lat: 28.6139, lng: 77.2090 }; // Default: Delhi
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 15,
+                center: defaultLocation,
+                mapTypeId: google.maps.MapTypeId.ROADMAP,
+                styles: [
+                    { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+                    { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+                    { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+                    {
+                        featureType: "administrative.locality",
+                        elementType: "labels.text.fill",
+                        stylers: [{ color: "#d59563" }]
+                    },
+                    {
+                        featureType: "poi",
+                        elementType: "labels.text.fill",
+                        stylers: [{ color: "#d59563" }]
+                    },
+                    {
+                        featureType: "road",
+                        elementType: "geometry",
+                        stylers: [{ color: "#38414e" }]
+                    }
+                ]
+            });
+            
+            marker = new google.maps.Marker({
+                position: defaultLocation,
+                map: map,
+                icon: {
+                    url: "http://maps.google.com/mapfiles/ms/icons/green-dot.png",
+                    scaledSize: new google.maps.Size(40, 40)
+                },
+                title: "Target Phone"
+            });
+        }
+        
+        // Update map with new location
+        function updateMapLocation(lat, lng) {
+            if (!map || !marker) return;
+            
+            const position = new google.maps.LatLng(lat, lng);
+            marker.setPosition(position);
+            map.setCenter(position);
+            
+            // Update info
+            document.getElementById('trackerLocationInfo').innerHTML = 
+                `📍 Target location: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+        }
+        
+        // Update tracker status text
+        function updateTrackerStatusText(text) {
+            document.getElementById('trackerStatusText').innerHTML = text;
+            if (text.includes("Tracking")) {
+                document.getElementById('trackerDot').classList.add('active');
+            } else {
+                document.getElementById('trackerDot').classList.remove('active');
+            }
+        }
+        
+        function updateTrackerStatus(locationData) {
+            if (locationData && locationData.lat) {
+                updateTrackerStatusText(`🟢 Tracking live · Last update: ${locationData.timestamp || 'just now'}`);
+                document.getElementById('trackerLocationInfo').innerHTML = 
+                    `📍 Lat: ${locationData.lat.toFixed(6)}, Lng: ${locationData.lng.toFixed(6)}<br>📏 Accuracy: ${Math.round(locationData.accuracy)}m`;
+            }
+        }
+        
+        // Start tracking from Phone B
+        function startTracking(code) {
+            if (!code || code.length < 6) {
+                alert("Please enter a valid 6-digit code");
+                return false;
+            }
+            
+            // Check if sharing is active on Phone A
+            const sharingActive = localStorage.getItem('phoneTracker_sharing');
+            const savedCode = localStorage.getItem('phoneTracker_code');
+            
+            if (savedCode !== code) {
+                alert("❌ Invalid code! Make sure Phone A is sharing location with this code.");
+                return false;
+            }
+            
+            if (sharingActive !== 'true') {
+                alert("⚠️ Phone A is not sharing location right now. Make sure location sharing is turned ON on Phone A.");
+                return false;
+            }
+            
+            // Clear any existing tracking
+            if (trackingInterval) {
+                clearInterval(trackingInterval);
+            }
+            
+            isTracking = true;
+            currentTrackingCode = code;
+            localStorage.setItem('phoneTracker_trackingCode', code);
+            
+            // Show map
+            document.getElementById('mapContainer').style.display = 'block';
+            document.getElementById('stopTrackingBtn').style.display = 'block';
+            
+            // Initialize map if not already
+            if (!map) {
+                // Wait for map to initialize
+                const checkMap = setInterval(() => {
+                    if (typeof google !== 'undefined' && google.maps) {
+                        clearInterval(checkMap);
+                        initMap();
+                        fetchAndDisplayLocation(code);
+                    }
+                }, 100);
+            } else {
+                fetchAndDisplayLocation(code);
+            }
+            
+            // Set interval to fetch location every 3 seconds
+            trackingInterval = setInterval(() => {
+                if (isTracking && currentTrackingCode) {
+                    fetchAndDisplayLocation(currentTrackingCode);
+                }
+            }, 3000);
+            
+            updateTrackerStatusText(`🟢 Tracking Phone A (${code})...`);
+            return true;
+        }
+        
+        function fetchAndDisplayLocation(code) {
+            const locationDataStr = localStorage.getItem('phoneTracker_location_' + code);
+            if (locationDataStr) {
+                try {
+                    const locationData = JSON.parse(locationDataStr);
+                    const now = Date.now();
+                    const lastUpdate = locationData.lastUpdate || 0;
+                    
+                    // Check if location is recent (within 10 seconds)
+                    if (now - lastUpdate < 15000) {
+                        updateMapLocation(locationData.lat, locationData.lng);
+                        updateTrackerStatus(locationData);
+                        updateTrackerStatusText(`🟢 Live tracking · Updated ${locationData.timestamp || 'now'}`);
+                    } else {
+                        updateTrackerStatusText(`⚠️ Waiting for location update from Phone A...`);
+                        document.getElementById('trackerLocationInfo').innerHTML = '⏳ No recent location data. Make sure Phone A has GPS on.';
+                    }
+                } catch(e) {
+                    console.error("Error parsing location:", e);
+                }
+            } else {
+                updateTrackerStatusText(`⏳ Waiting for Phone A (${code}) to share location...`);
+                document.getElementById('trackerLocationInfo').innerHTML = 'Make sure Phone A has turned ON location sharing.';
+            }
+        }
+        
+        function stopTracking() {
+            if (trackingInterval) {
+                clearInterval(trackingInterval);
+                trackingInterval = null;
+            }
+            
+            isTracking = false;
+            currentTrackingCode = null;
+            localStorage.removeItem('phoneTracker_trackingCode');
+            
+            document.getElementById('mapContainer').style.display = 'none';
+            document.getElementById('stopTrackingBtn').style.display = 'none';
+            updateTrackerStatusText('Not tracking. Enter code to start.');
+            document.getElementById('trackerLocationInfo').innerHTML = '';
+            document.getElementById('trackCodeInput').value = '';
+        }
+        
+        // Event Listeners
+        document.getElementById('copyCodeBtn').addEventListener('click', () => {
+            const code = document.getElementById('uniqueCode').innerText;
+            navigator.clipboard.writeText(code).then(() => {
+                alert('Code copied: ' + code);
+            }).catch(() => {
+                prompt('Copy this code manually:', code);
+            });
+        });
+        
+        document.getElementById('locationToggle').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                // Start sharing
+                if (navigator.geolocation) {
+                    startLocationSharing();
+                } else {
+                    alert("Geolocation not supported");
+                    e.target.checked = false;
+                }
+            } else {
+                // Stop sharing
+                stopLocationSharing();
+            }
+        });
+        
+        document.getElementById('startTrackingBtn').addEventListener('click', () => {
+            const code = document.getElementById('trackCodeInput').value.trim();
+            if (code) {
+                startTracking(code);
+            } else {
+                alert("Please enter the 6-digit code from Phone A");
+            }
+        });
+        
+        document.getElementById('stopTrackingBtn').addEventListener('click', () => {
+            stopTracking();
+        });
+        
+        document.getElementById('stopSharingBtn').addEventListener('click', () => {
+            if (isSharing || watchId !== null) {
+                stopLocationSharing();
+            } else {
+                alert("Location sharing is not active");
+            }
+        });
+        
+        // Restrict code input to numbers only
+        document.getElementById('trackCodeInput').addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+        });
+        
+        // Check if browser supports geolocation on load
+        if (!navigator.geolocation) {
+            document.getElementById('broadcasterStatusText').innerHTML = '❌ Geolocation not supported';
+            document.getElementById('locationToggle').disabled = true;
+        }
+        
+        // Check for existing active tracking on load
+        window.initMap = initMap;
+        
+        // Start automatically if previously sharing
+        const wasSharing = localStorage.getItem('phoneTracker_sharing');
+        if (wasSharing === 'true') {
+            const savedCode = localStorage.getItem('phoneTracker_code');
+            if (savedCode && navigator.geolocation) {
+                document.getElementById('locationToggle').checked = true;
+                startLocationSharing();
+            }
+        }
+        
+        // Call init
+        init();
+        
+        // Handle page unload - don't automatically stop sharing
+        window.addEventListener('beforeunload', () => {
+            // We don't stop sharing on page unload so it persists
+        });
+    </script>
+</body>
+</html>
