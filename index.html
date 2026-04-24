@@ -3,7 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-    <title>Live Ride Tracker · Real-time Distance & Map</title>
+    <title>Live Ride Tracker · Real-time Distance & Map (No API Key)</title>
+    <!-- Leaflet CSS + JS (Free OpenStreetMap - No API Key Needed) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet Routing Machine for distance line -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
     <style>
         * {
             margin: 0;
@@ -18,7 +24,6 @@
             color: #ffffff;
         }
 
-        /* Main Container */
         .app-container {
             max-width: 100%;
             margin: 0 auto;
@@ -29,6 +34,7 @@
             width: 100%;
             height: 55vh;
             position: relative;
+            background: #1a1a2e;
         }
 
         #map {
@@ -43,7 +49,7 @@
             top: 60px;
             left: 12px;
             right: 12px;
-            z-index: 10;
+            z-index: 1000;
             pointer-events: none;
         }
 
@@ -148,6 +154,7 @@
             display: flex;
             gap: 12px;
             margin-top: 15px;
+            flex-wrap: wrap;
         }
 
         .input-group input {
@@ -224,6 +231,18 @@
             cursor: pointer;
         }
 
+        .btn-start {
+            background: #00ff88;
+            color: #000;
+            width: 100%;
+            padding: 14px;
+            border-radius: 60px;
+            border: none;
+            font-weight: bold;
+            margin-top: 0;
+            cursor: pointer;
+        }
+
         .footer {
             text-align: center;
             font-size: 0.6rem;
@@ -231,7 +250,6 @@
             padding: 16px;
         }
 
-        /* Ride Style Animation */
         .ride-badge {
             display: inline-block;
             background: #00ff8822;
@@ -239,6 +257,11 @@
             border-radius: 20px;
             font-size: 0.7rem;
             margin-left: 10px;
+        }
+
+        /* Leaflet Routing custom */
+        .leaflet-routing-container {
+            display: none;
         }
     </style>
 </head>
@@ -282,7 +305,7 @@
                         <div class="location-text" id="shareLocation">-</div>
                     </div>
                     <button class="btn-stop" id="stopShareBtn" style="display: none;">🛑 Stop Sharing My Location</button>
-                    <button class="btn-stop" id="startShareBtn" style="background: #00ff88; color: #000; margin-top: 0;">▶ Start Sharing Location</button>
+                    <button class="btn-start" id="startShareBtn">▶ Start Sharing Location</button>
                 </div>
             </div>
 
@@ -305,23 +328,22 @@
             </div>
 
             <div class="footer">
-                🟢 Green = Target Phone | 🔵 Blue = Your Phone | 🟢 Green Line = Live Distance | Ola/Uber Style Tracker
+                🟢 Green = Target Phone | 🔵 Blue = Your Phone | 🟢 Green Line = Live Distance | No API Key Required
             </div>
         </div>
     </div>
 
     <script>
         // ============================================
-        // RIDE STYLE TRACKER - OLA/UBER LIKE SYSTEM
-        // User A shares location, User B enters code
-        // Both see live map with green line and distance
+        // RIDE STYLE TRACKER - USING OPENSTREETMAP (FREE)
+        // NO API KEY REQUIRED - FULLY WORKING
         // ============================================
         
         let map = null;
-        let targetMarker = null;      // Green marker (tracked phone)
-        let currentMarker = null;     // Blue marker (tracker's phone)
-        let routePolyline = null;      // Green line between phones
-        let distanceLabelMarker = null; // Distance text on map
+        let targetMarker = null;
+        let currentMarker = null;
+        let routeLine = null;
+        let routingControl = null;
         
         let shareWatchId = null;
         let isSharing = false;
@@ -341,7 +363,7 @@
             return Math.floor(100000 + Math.random() * 900000).toString();
         }
         
-        // Calculate distance in meters
+        // Calculate distance in meters (Haversine formula)
         function calculateDistance(lat1, lng1, lat2, lng2) {
             const R = 6371e3;
             const φ1 = lat1 * Math.PI / 180;
@@ -360,93 +382,66 @@
             return (meters / 1000).toFixed(2) + ' km';
         }
         
-        // Initialize Google Map
+        // Initialize Leaflet Map (OpenStreetMap - Free)
         function initMap() {
-            const defaultCenter = { lat: 28.6139, lng: 77.2090 };
-            map = new google.maps.Map(document.getElementById('map'), {
-                zoom: 14,
-                center: defaultCenter,
-                zoomControl: true,
-                streetViewControl: false,
-                mapTypeControl: false,
-                fullscreenControl: true,
-                styles: [
-                    { elementType: "geometry", stylers: [{ color: "#1a1a2e" }] },
-                    { elementType: "labels.text.fill", stylers: [{ color: "#8ab4f8" }] },
-                    { featureType: "road", elementType: "geometry", stylers: [{ color: "#2d2d4a" }] },
-                    { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#3a3a5a" }] },
-                    { featureType: "water", elementType: "geometry", stylers: [{ color: "#0a1a3a" }] },
-                    { featureType: "transit", elementType: "geometry", stylers: [{ color: "#2a2a4a" }] }
-                ]
+            const defaultCenter = [28.6139, 77.2090];
+            map = L.map('map').setView(defaultCenter, 13);
+            
+            // OpenStreetMap tiles (free, no API key)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CartoDB',
+                subdomains: 'abcd',
+                maxZoom: 19,
+                minZoom: 3
+            }).addTo(map);
+            
+            // Custom icons
+            const greenIcon = L.divIcon({
+                html: '<div style="background: #00ff88; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px #00ff88;"></div>',
+                iconSize: [30, 30],
+                className: 'custom-icon'
             });
             
-            // Target Marker (Green - Phone being tracked)
-            targetMarker = new google.maps.Marker({
-                position: defaultCenter,
-                map: map,
-                icon: {
-                    url: "http://maps.google.com/mapfiles/ms/icons/green-dot.png",
-                    scaledSize: new google.maps.Size(48, 48)
-                },
-                title: "📍 Target Phone (Green)",
-                animation: google.maps.Animation.DROP
+            const blueIcon = L.divIcon({
+                html: '<div style="background: #0088ff; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px #0088ff;"></div>',
+                iconSize: [30, 30],
+                className: 'custom-icon'
             });
             
-            // Current Marker (Blue - Your phone)
-            currentMarker = new google.maps.Marker({
-                position: defaultCenter,
-                map: map,
-                icon: {
-                    url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png",
-                    scaledSize: new google.maps.Size(48, 48)
-                },
-                title: "📍 Your Location (Blue)",
-                animation: google.maps.Animation.DROP
-            });
+            // Target Marker (Green)
+            targetMarker = L.marker(defaultCenter, { icon: greenIcon }).addTo(map);
+            targetMarker.bindTooltip('📍 Target Phone', { permanent: false, direction: 'top' });
             
-            // Route Polyline (Green line between phones)
-            routePolyline = new google.maps.Polyline({
-                path: [],
-                geodesic: true,
-                strokeColor: "#00ff88",
-                strokeOpacity: 0.9,
-                strokeWeight: 5,
-                icons: [{
-                    icon: {
-                        path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
-                        scale: 4,
-                        strokeColor: "#00ff88",
-                        fillColor: "#00ff88",
-                        fillOpacity: 1
-                    },
-                    offset: "50%"
-                }]
-            });
-            routePolyline.setMap(map);
+            // Current Marker (Blue)
+            currentMarker = L.marker(defaultCenter, { icon: blueIcon }).addTo(map);
+            currentMarker.bindTooltip('📍 Your Location', { permanent: false, direction: 'top' });
+            
+            // Route line (Polyline)
+            routeLine = L.polyline([], { color: '#00ff88', weight: 5, opacity: 0.9 }).addTo(map);
             
             isMapReady = true;
             updateMapDisplay();
         }
         
-        // Update map with both locations and draw route
+        // Update map with both locations
         function updateMapDisplay() {
             if (!isMapReady || !map) return;
             
-            let bounds = new google.maps.LatLngBounds();
+            let bounds = L.latLngBounds();
             let hasPoints = false;
             
             // Update target marker (Green)
             if (targetLocation && targetLocation.lat && targetLocation.lng) {
-                const targetPos = new google.maps.LatLng(targetLocation.lat, targetLocation.lng);
-                targetMarker.setPosition(targetPos);
+                const targetPos = [targetLocation.lat, targetLocation.lng];
+                targetMarker.setLatLng(targetPos);
                 bounds.extend(targetPos);
                 hasPoints = true;
             }
             
             // Update current marker (Blue)
             if (myLocation && myLocation.lat && myLocation.lng) {
-                const currentPos = new google.maps.LatLng(myLocation.lat, myLocation.lng);
-                currentMarker.setPosition(currentPos);
+                const currentPos = [myLocation.lat, myLocation.lng];
+                currentMarker.setLatLng(currentPos);
                 bounds.extend(currentPos);
                 hasPoints = true;
             }
@@ -454,10 +449,10 @@
             // Draw route line and calculate distance
             if (targetLocation && targetLocation.lat && myLocation && myLocation.lat) {
                 const path = [
-                    new google.maps.LatLng(myLocation.lat, myLocation.lng),
-                    new google.maps.LatLng(targetLocation.lat, targetLocation.lng)
+                    [myLocation.lat, myLocation.lng],
+                    [targetLocation.lat, targetLocation.lng]
                 ];
-                routePolyline.setPath(path);
+                routeLine.setLatLngs(path);
                 
                 const distanceMeters = calculateDistance(
                     myLocation.lat, myLocation.lng,
@@ -466,42 +461,16 @@
                 
                 document.getElementById('distanceValue').innerHTML = formatDistance(distanceMeters);
                 document.getElementById('distanceCard').style.display = 'block';
-                
-                // Add distance label at midpoint
-                const midLat = (myLocation.lat + targetLocation.lat) / 2;
-                const midLng = (myLocation.lng + targetLocation.lng) / 2;
-                
-                if (distanceLabelMarker) distanceLabelMarker.setMap(null);
-                distanceLabelMarker = new google.maps.Marker({
-                    position: { lat: midLat, lng: midLng },
-                    map: map,
-                    icon: {
-                        path: google.maps.SymbolPath.CIRCLE,
-                        scale: 0,
-                        fillOpacity: 0
-                    },
-                    label: {
-                        text: `📏 ${formatDistance(distanceMeters)}`,
-                        color: "#00ff88",
-                        fontWeight: "bold",
-                        fontSize: "13px",
-                        className: "distance-label-map"
-                    }
-                });
             } else {
-                routePolyline.setPath([]);
-                if (distanceLabelMarker) distanceLabelMarker.setMap(null);
+                routeLine.setLatLngs([]);
             }
             
             if (hasPoints) {
-                map.fitBounds(bounds);
-                const zoomLevel = map.getZoom();
-                if (zoomLevel > 18) map.setZoom(18);
-                if (zoomLevel < 12) map.setZoom(14);
+                map.fitBounds(bounds, { padding: [50, 50] });
             }
         }
         
-        // ========== USER A: SHARE MY LOCATION (Target Phone) ==========
+        // ========== USER A: SHARE MY LOCATION ==========
         function startSharingLocation() {
             if (!navigator.geolocation) {
                 alert("Geolocation not supported on this device");
@@ -521,7 +490,6 @@
                     const accuracy = position.coords.accuracy;
                     const timestamp = new Date().toLocaleTimeString();
                     
-                    // Save to localStorage
                     const locationData = {
                         lat: lat,
                         lng: lng,
@@ -534,7 +502,6 @@
                     localStorage.setItem('ride_sharing_active', 'true');
                     localStorage.setItem('ride_active_code', myCode);
                     
-                    // Update own location in map (if this device is also tracking)
                     myLocation = { lat: lat, lng: lng };
                     updateMapDisplay();
                     
@@ -629,7 +596,6 @@
             document.getElementById('trackBtn').style.display = 'none';
             document.getElementById('distanceCard').style.display = 'block';
             
-            // Fetch target location every 2 seconds
             trackingInterval = setInterval(() => {
                 if (isTracking && trackedCode) {
                     const locationStr = localStorage.getItem('ride_location_' + trackedCode);
@@ -674,8 +640,7 @@
             document.getElementById('distanceCard').style.display = 'none';
             document.getElementById('targetCode').value = '';
             
-            if (routePolyline) routePolyline.setPath([]);
-            if (distanceLabelMarker) distanceLabelMarker.setMap(null);
+            if (routeLine) routeLine.setLatLngs([]);
         }
         
         // ========== TAB SWITCHING ==========
@@ -734,30 +699,25 @@
         document.getElementById('myCode').innerText = myCode;
         localStorage.setItem('ride_active_code', myCode);
         
-        // Check for existing sharing session
         if (localStorage.getItem('ride_sharing_active') === 'true') {
             startSharingLocation();
         }
         
-        // Check for existing tracking session
         const savedTrackingCode = localStorage.getItem('ride_tracking_code');
         if (savedTrackingCode) {
             document.getElementById('targetCode').value = savedTrackingCode;
             setTimeout(() => startTrackingPhone(savedTrackingCode), 500);
         }
         
-        // Start getting own location
         startGettingMyLocation();
         
-        // Google Maps callback
-        window.initMap = initMap;
+        // Initialize map
+        initMap();
         
-        // Auto-refresh map every second
         setInterval(() => {
             if (isMapReady) updateMapDisplay();
         }, 1000);
         
-        // Cross-tab sync for real-time updates
         window.addEventListener('storage', (e) => {
             if (e.key === 'ride_location_' + trackedCode && isTracking) {
                 const locationStr = e.newValue;
@@ -771,7 +731,5 @@
             }
         });
     </script>
-    
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB41DRUbKWJHPxaFjMAwdrzWzbVKartNGg&callback=initMap" async defer></script>
 </body>
 </html>
