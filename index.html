@@ -3,13 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-    <title>Live Ride Tracker · Real-time Distance & Map (No API Key)</title>
+    <title>Live Ride Tracker · Two-Way Live Distance & Map</title>
     <!-- Leaflet CSS + JS (Free OpenStreetMap - No API Key Needed) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- Leaflet Routing Machine for distance line -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
-    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
     <style>
         * {
             margin: 0;
@@ -259,9 +256,14 @@
             margin-left: 10px;
         }
 
-        /* Leaflet Routing custom */
-        .leaflet-routing-container {
-            display: none;
+        /* Device info badges on map */
+        .device-badge {
+            background: rgba(0,0,0,0.7);
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: bold;
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -277,7 +279,7 @@
             <div class="distance-card" id="distanceCard" style="display: none;">
                 <div class="distance-label">🚗 DISTANCE BETWEEN DEVICES</div>
                 <div class="distance-value" id="distanceValue">0 m</div>
-                <div class="distance-label">🟢 Green line = Live Path</div>
+                <div class="distance-label">🟢 Green Line = Live Path</div>
             </div>
         </div>
 
@@ -288,7 +290,7 @@
                 <div class="tab" data-tab="track">🎯 Track Other Phone</div>
             </div>
 
-            <!-- Share Tab (User A - Jo apna phone share karega) -->
+            <!-- Share Tab (Phone A - Jo apna phone share karega) -->
             <div id="shareTab">
                 <div class="code-section">
                     <div class="code-display">
@@ -296,6 +298,13 @@
                         <div class="code-number" id="myCode">------</div>
                         <button class="copy-btn" id="copyCodeBtn">📋 Copy Code</button>
                     </div>
+                    
+                    <!-- NEW: Phone A ko doosre phone ka code add karne ka option -->
+                    <div class="input-group" style="margin-top: 20px;">
+                        <input type="text" id="shareTrackCode" placeholder="Enter Other Phone's Code to Track Both" maxlength="6">
+                        <button class="track-btn" id="shareTrackBtn" style="padding: 12px 20px;">🔗 Link Both</button>
+                    </div>
+                    
                     <div class="status-card" style="margin-top: 15px;">
                         <div class="status-row">
                             <div class="status-dot" id="shareDot"></div>
@@ -309,7 +318,7 @@
                 </div>
             </div>
 
-            <!-- Track Tab (User B - Jo doosre phone ko track karega) -->
+            <!-- Track Tab (Phone B - Jo doosre phone ko track karega) -->
             <div id="trackTab" style="display: none;">
                 <div class="code-section">
                     <div class="input-group">
@@ -328,22 +337,21 @@
             </div>
 
             <div class="footer">
-                🟢 Green = Target Phone | 🔵 Blue = Your Phone | 🟢 Green Line = Live Distance | No API Key Required
+                🔴 Red Dot = Phone A (Your Device) | 🔵 Blue Dot = Phone B (Other Device) | 🟢 Green Line = Live Distance
             </div>
         </div>
     </div>
 
     <script>
         // ============================================
-        // RIDE STYLE TRACKER - USING OPENSTREETMAP (FREE)
-        // NO API KEY REQUIRED - FULLY WORKING
+        // TWO-WAY RIDE STYLE TRACKER
+        // Phone A par bhi dono devices ke dots, distance aur green line dikhegi
         // ============================================
         
         let map = null;
-        let targetMarker = null;
-        let currentMarker = null;
+        let phoneAMarker = null;      // Red marker - Phone A (Current Device)
+        let phoneBMarker = null;      // Blue marker - Phone B (Other Device)
         let routeLine = null;
-        let routingControl = null;
         
         let shareWatchId = null;
         let isSharing = false;
@@ -353,10 +361,23 @@
         let isTracking = false;
         let trackedCode = null;
         
-        let myLocation = null;
-        let targetLocation = null;
+        // For two-way tracking (Phone A also tracks Phone B)
+        let twoWayTrackingInterval = null;
+        let isTwoWayTracking = false;
+        let otherPhoneCode = null;
+        
+        let phoneALocation = null;    // Red dot location (My location on Phone A)
+        let phoneBLocation = null;    // Blue dot location (Other phone's location)
         
         let isMapReady = false;
+        
+        // ========== DEVICE IDENTIFICATION ==========
+        // Generate unique device ID
+        let deviceId = localStorage.getItem('ride_device_id');
+        if (!deviceId) {
+            deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+            localStorage.setItem('ride_device_id', deviceId);
+        }
         
         // Generate 6-digit code
         function generateCode() {
@@ -365,6 +386,7 @@
         
         // Calculate distance in meters (Haversine formula)
         function calculateDistance(lat1, lng1, lat2, lng2) {
+            if (!lat1 || !lng1 || !lat2 || !lng2) return 0;
             const R = 6371e3;
             const φ1 = lat1 * Math.PI / 180;
             const φ2 = lat2 * Math.PI / 180;
@@ -382,12 +404,11 @@
             return (meters / 1000).toFixed(2) + ' km';
         }
         
-        // Initialize Leaflet Map (OpenStreetMap - Free)
+        // Initialize Leaflet Map
         function initMap() {
             const defaultCenter = [28.6139, 77.2090];
             map = L.map('map').setView(defaultCenter, 13);
             
-            // OpenStreetMap tiles (free, no API key)
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CartoDB',
                 subdomains: 'abcd',
@@ -395,29 +416,28 @@
                 minZoom: 3
             }).addTo(map);
             
-            // Custom icons
-            const greenIcon = L.divIcon({
-                html: '<div style="background: #00ff88; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px #00ff88;"></div>',
-                iconSize: [30, 30],
+            // Phone A Marker (Red - Current Device)
+            const redIcon = L.divIcon({
+                html: '<div style="background: #ff4444; width: 28px; height: 28px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 15px #ff4444;"></div><div style="background: #000000aa; padding: 2px 6px; border-radius: 12px; font-size: 10px; margin-top: 25px; white-space: nowrap;">📱 Phone A</div>',
+                iconSize: [40, 50],
                 className: 'custom-icon'
             });
             
+            // Phone B Marker (Blue - Other Device)
             const blueIcon = L.divIcon({
-                html: '<div style="background: #0088ff; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 10px #0088ff;"></div>',
-                iconSize: [30, 30],
+                html: '<div style="background: #0088ff; width: 28px; height: 28px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 15px #0088ff;"></div><div style="background: #000000aa; padding: 2px 6px; border-radius: 12px; font-size: 10px; margin-top: 25px; white-space: nowrap;">📱 Phone B</div>',
+                iconSize: [40, 50],
                 className: 'custom-icon'
             });
             
-            // Target Marker (Green)
-            targetMarker = L.marker(defaultCenter, { icon: greenIcon }).addTo(map);
-            targetMarker.bindTooltip('📍 Target Phone', { permanent: false, direction: 'top' });
+            phoneAMarker = L.marker(defaultCenter, { icon: redIcon }).addTo(map);
+            phoneAMarker.bindTooltip('📱 Phone A (Your Device)', { permanent: false, direction: 'top' });
             
-            // Current Marker (Blue)
-            currentMarker = L.marker(defaultCenter, { icon: blueIcon }).addTo(map);
-            currentMarker.bindTooltip('📍 Your Location', { permanent: false, direction: 'top' });
+            phoneBMarker = L.marker(defaultCenter, { icon: blueIcon }).addTo(map);
+            phoneBMarker.bindTooltip('📱 Phone B (Tracked Device)', { permanent: false, direction: 'top' });
             
-            // Route line (Polyline)
-            routeLine = L.polyline([], { color: '#00ff88', weight: 5, opacity: 0.9 }).addTo(map);
+            // Route line (Green Polyline)
+            routeLine = L.polyline([], { color: '#00ff88', weight: 5, opacity: 0.9, dashArray: '10, 10' }).addTo(map);
             
             isMapReady = true;
             updateMapDisplay();
@@ -430,33 +450,33 @@
             let bounds = L.latLngBounds();
             let hasPoints = false;
             
-            // Update target marker (Green)
-            if (targetLocation && targetLocation.lat && targetLocation.lng) {
-                const targetPos = [targetLocation.lat, targetLocation.lng];
-                targetMarker.setLatLng(targetPos);
-                bounds.extend(targetPos);
+            // Update Phone A Marker (Red - Current Device)
+            if (phoneALocation && phoneALocation.lat && phoneALocation.lng) {
+                const posA = [phoneALocation.lat, phoneALocation.lng];
+                phoneAMarker.setLatLng(posA);
+                bounds.extend(posA);
                 hasPoints = true;
             }
             
-            // Update current marker (Blue)
-            if (myLocation && myLocation.lat && myLocation.lng) {
-                const currentPos = [myLocation.lat, myLocation.lng];
-                currentMarker.setLatLng(currentPos);
-                bounds.extend(currentPos);
+            // Update Phone B Marker (Blue - Other Device)
+            if (phoneBLocation && phoneBLocation.lat && phoneBLocation.lng) {
+                const posB = [phoneBLocation.lat, phoneBLocation.lng];
+                phoneBMarker.setLatLng(posB);
+                bounds.extend(posB);
                 hasPoints = true;
             }
             
             // Draw route line and calculate distance
-            if (targetLocation && targetLocation.lat && myLocation && myLocation.lat) {
+            if (phoneALocation && phoneALocation.lat && phoneBLocation && phoneBLocation.lat) {
                 const path = [
-                    [myLocation.lat, myLocation.lng],
-                    [targetLocation.lat, targetLocation.lng]
+                    [phoneALocation.lat, phoneALocation.lng],
+                    [phoneBLocation.lat, phoneBLocation.lng]
                 ];
                 routeLine.setLatLngs(path);
                 
                 const distanceMeters = calculateDistance(
-                    myLocation.lat, myLocation.lng,
-                    targetLocation.lat, targetLocation.lng
+                    phoneALocation.lat, phoneALocation.lng,
+                    phoneBLocation.lat, phoneBLocation.lng
                 );
                 
                 document.getElementById('distanceValue').innerHTML = formatDistance(distanceMeters);
@@ -470,7 +490,7 @@
             }
         }
         
-        // ========== USER A: SHARE MY LOCATION ==========
+        // ========== PHONE A: SHARE MY LOCATION ==========
         function startSharingLocation() {
             if (!navigator.geolocation) {
                 alert("Geolocation not supported on this device");
@@ -495,18 +515,21 @@
                         lng: lng,
                         accuracy: accuracy,
                         timestamp: timestamp,
-                        lastUpdate: Date.now()
+                        lastUpdate: Date.now(),
+                        deviceId: deviceId
                     };
                     
                     localStorage.setItem('ride_location_' + myCode, JSON.stringify(locationData));
                     localStorage.setItem('ride_sharing_active', 'true');
                     localStorage.setItem('ride_active_code', myCode);
+                    localStorage.setItem('ride_device_' + myCode, deviceId);
                     
-                    myLocation = { lat: lat, lng: lng };
+                    // Update Phone A location
+                    phoneALocation = { lat: lat, lng: lng };
                     updateMapDisplay();
                     
                     document.getElementById('shareLocation').innerHTML = 
-                        `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>🕐 ${timestamp} | ±${Math.round(accuracy)}m`;
+                        `📍 Phone A: ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>🕐 ${timestamp} | ±${Math.round(accuracy)}m`;
                 },
                 (error) => {
                     let msg = "Location error";
@@ -538,20 +561,80 @@
             document.getElementById('shareLocation').innerHTML = '-';
             document.getElementById('startShareBtn').style.display = 'block';
             document.getElementById('stopShareBtn').style.display = 'none';
+            
+            // Stop two-way tracking if active
+            stopTwoWayTracking();
         }
         
-        // ========== USER B: GET MY OWN LOCATION ==========
+        // ========== TWO-WAY TRACKING (Phone A tracks Phone B) ==========
+        function startTwoWayTracking(otherCode) {
+            if (!otherCode || otherCode.length !== 6) {
+                alert("Please enter a valid 6-digit code of the other phone");
+                return false;
+            }
+            
+            // Check if the other phone's code exists
+            const otherDeviceId = localStorage.getItem('ride_device_' + otherCode);
+            if (!otherDeviceId) {
+                alert("❌ Invalid code! Make sure the other phone is sharing location.");
+                return false;
+            }
+            
+            if (twoWayTrackingInterval) clearInterval(twoWayTrackingInterval);
+            
+            isTwoWayTracking = true;
+            otherPhoneCode = otherCode;
+            localStorage.setItem('ride_two_way_code', otherCode);
+            
+            document.getElementById('shareStatus').innerHTML = '📍 Sharing + Tracking other device...';
+            
+            twoWayTrackingInterval = setInterval(() => {
+                if (isTwoWayTracking && otherPhoneCode) {
+                    const locationStr = localStorage.getItem('ride_location_' + otherPhoneCode);
+                    if (locationStr) {
+                        try {
+                            const locationData = JSON.parse(locationStr);
+                            const now = Date.now();
+                            if (now - locationData.lastUpdate < 15000) {
+                                phoneBLocation = {
+                                    lat: locationData.lat,
+                                    lng: locationData.lng
+                                };
+                                if (isMapReady) updateMapDisplay();
+                            }
+                        } catch(e) {}
+                    }
+                }
+            }, 2000);
+            
+            return true;
+        }
+        
+        function stopTwoWayTracking() {
+            if (twoWayTrackingInterval) {
+                clearInterval(twoWayTrackingInterval);
+                twoWayTrackingInterval = null;
+            }
+            isTwoWayTracking = false;
+            otherPhoneCode = null;
+            phoneBLocation = null;
+            localStorage.removeItem('ride_two_way_code');
+            if (routeLine) routeLine.setLatLngs([]);
+            updateMapDisplay();
+        }
+        
+        // ========== PHONE B: GET MY OWN LOCATION ==========
         function startGettingMyLocation() {
             if (!navigator.geolocation) return;
             
             navigator.geolocation.watchPosition(
                 (position) => {
-                    myLocation = {
+                    phoneALocation = {
                         lat: position.coords.latitude,
                         lng: position.coords.longitude
                     };
                     document.getElementById('trackLocation').innerHTML = 
-                        `📍 Your location: ${myLocation.lat.toFixed(6)}, ${myLocation.lng.toFixed(6)}`;
+                        `📍 Phone B: ${phoneALocation.lat.toFixed(6)}, ${phoneALocation.lng.toFixed(6)}`;
                     
                     if (isTracking && isMapReady) {
                         updateMapDisplay();
@@ -564,17 +647,18 @@
             );
         }
         
-        // ========== USER B: TRACK OTHER PHONE ==========
+        // ========== PHONE B: TRACK PHONE A ==========
         function startTrackingPhone(code) {
             if (!code || code.length !== 6) {
                 alert("Please enter a valid 6-digit code");
                 return false;
             }
             
-            const savedCode = localStorage.getItem('ride_active_code');
+            const savedDeviceId = localStorage.getItem('ride_device_' + code);
             const sharingActive = localStorage.getItem('ride_sharing_active');
+            const activeCode = localStorage.getItem('ride_active_code');
             
-            if (savedCode !== code) {
+            if (activeCode !== code) {
                 alert("❌ Invalid code! Make sure the other phone is sharing location.");
                 return false;
             }
@@ -591,7 +675,7 @@
             localStorage.setItem('ride_tracking_code', code);
             
             document.getElementById('trackDot').classList.add('live');
-            document.getElementById('trackStatus').innerHTML = `🟢 Live tracking Phone with code ${code}...`;
+            document.getElementById('trackStatus').innerHTML = `🟢 Live tracking Phone A (${code})...`;
             document.getElementById('stopTrackBtn').style.display = 'block';
             document.getElementById('trackBtn').style.display = 'none';
             document.getElementById('distanceCard').style.display = 'block';
@@ -604,7 +688,7 @@
                             const locationData = JSON.parse(locationStr);
                             const now = Date.now();
                             if (now - locationData.lastUpdate < 15000) {
-                                targetLocation = {
+                                phoneBLocation = {
                                     lat: locationData.lat,
                                     lng: locationData.lng
                                 };
@@ -629,7 +713,7 @@
             }
             isTracking = false;
             trackedCode = null;
-            targetLocation = null;
+            phoneBLocation = null;
             localStorage.removeItem('ride_tracking_code');
             
             document.getElementById('trackDot').classList.remove('live');
@@ -641,6 +725,7 @@
             document.getElementById('targetCode').value = '';
             
             if (routeLine) routeLine.setLatLngs([]);
+            updateMapDisplay();
         }
         
         // ========== TAB SWITCHING ==========
@@ -682,6 +767,18 @@
         document.getElementById('startShareBtn').addEventListener('click', startSharingLocation);
         document.getElementById('stopShareBtn').addEventListener('click', stopSharingLocation);
         
+        // Phone A - Track other phone (Two-way)
+        document.getElementById('shareTrackBtn').addEventListener('click', () => {
+            const code = document.getElementById('shareTrackCode').value.trim();
+            if (code) {
+                startTwoWayTracking(code);
+                document.getElementById('shareTrackCode').value = '';
+            } else {
+                alert("Enter the 6-digit code of the other phone");
+            }
+        });
+        
+        // Phone B - Track Phone A
         document.getElementById('trackBtn').addEventListener('click', () => {
             const code = document.getElementById('targetCode').value.trim();
             if (code) startTrackingPhone(code);
@@ -690,7 +787,11 @@
         
         document.getElementById('stopTrackBtn').addEventListener('click', stopTrackingPhone);
         
+        // Input restrictions
         document.getElementById('targetCode').addEventListener('input', (e) => {
+            e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+        });
+        document.getElementById('shareTrackCode').addEventListener('input', (e) => {
             e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
         });
         
@@ -698,11 +799,20 @@
         myCode = generateCode();
         document.getElementById('myCode').innerText = myCode;
         localStorage.setItem('ride_active_code', myCode);
+        localStorage.setItem('ride_device_' + myCode, deviceId);
         
         if (localStorage.getItem('ride_sharing_active') === 'true') {
             startSharingLocation();
         }
         
+        // Check for existing two-way tracking
+        const savedTwoWayCode = localStorage.getItem('ride_two_way_code');
+        if (savedTwoWayCode) {
+            document.getElementById('shareTrackCode').value = savedTwoWayCode;
+            setTimeout(() => startTwoWayTracking(savedTwoWayCode), 500);
+        }
+        
+        // Check for existing tracking
         const savedTrackingCode = localStorage.getItem('ride_tracking_code');
         if (savedTrackingCode) {
             document.getElementById('targetCode').value = savedTrackingCode;
@@ -710,8 +820,6 @@
         }
         
         startGettingMyLocation();
-        
-        // Initialize map
         initMap();
         
         setInterval(() => {
@@ -724,7 +832,17 @@
                 if (locationStr) {
                     try {
                         const data = JSON.parse(locationStr);
-                        targetLocation = { lat: data.lat, lng: data.lng };
+                        phoneBLocation = { lat: data.lat, lng: data.lng };
+                        updateMapDisplay();
+                    } catch(e) {}
+                }
+            }
+            if (e.key === 'ride_location_' + otherPhoneCode && isTwoWayTracking) {
+                const locationStr = e.newValue;
+                if (locationStr) {
+                    try {
+                        const data = JSON.parse(locationStr);
+                        phoneBLocation = { lat: data.lat, lng: data.lng };
                         updateMapDisplay();
                     } catch(e) {}
                 }
