@@ -7,9 +7,6 @@
     <!-- Leaflet CSS + JS (Free OpenStreetMap - Professional Tiles) -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <!-- Leaflet Routing Machine for advanced route -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
-    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
     <style>
         * {
             margin: 0;
@@ -29,7 +26,6 @@
             margin: 0 auto;
         }
 
-        /* Map Full Width - Enhanced */
         .map-full {
             width: 100%;
             height: 58vh;
@@ -44,7 +40,6 @@
             background: #0f172a;
         }
 
-        /* Overlay Cards - Enhanced */
         .info-overlay {
             position: absolute;
             top: 20px;
@@ -85,7 +80,6 @@
             margin-top: 5px;
         }
 
-        /* Bottom Panel */
         .bottom-panel {
             background: #0f1322;
             border-radius: 32px 32px 0 0;
@@ -96,7 +90,6 @@
             box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.4);
         }
 
-        /* Tabs */
         .tabs {
             display: flex;
             gap: 12px;
@@ -124,7 +117,6 @@
             box-shadow: 0 2px 10px rgba(0, 255, 136, 0.3);
         }
 
-        /* Code Section */
         .code-section {
             background: #151a2a;
             border-radius: 28px;
@@ -167,7 +159,6 @@
             box-shadow: 0 0 15px #00ff88;
         }
 
-        /* Input Group */
         .input-group {
             display: flex;
             gap: 12px;
@@ -211,7 +202,6 @@
             box-shadow: 0 0 15px #00ff88;
         }
 
-        /* Status */
         .status-card {
             background: #0a0e18;
             border-radius: 24px;
@@ -302,7 +292,6 @@
             margin-left: 10px;
         }
 
-        /* Custom map control styles */
         .leaflet-control-zoom {
             border: none !important;
             background: rgba(0, 0, 0, 0.7) !important;
@@ -325,12 +314,10 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Map Section -->
         <div class="map-full">
             <div id="map"></div>
         </div>
 
-        <!-- Distance Overlay -->
         <div class="info-overlay">
             <div class="distance-card" id="distanceCard" style="display: none;">
                 <div class="distance-label">🚗 REAL-TIME DISTANCE</div>
@@ -340,14 +327,12 @@
             </div>
         </div>
 
-        <!-- Bottom Panel -->
         <div class="bottom-panel">
             <div class="tabs">
                 <div class="tab active" data-tab="share">📱 Phone A · Share Location</div>
                 <div class="tab" data-tab="track">🎯 Phone B · Track Phone A</div>
             </div>
 
-            <!-- Share Tab (Phone A) -->
             <div id="shareTab">
                 <div class="code-section">
                     <div class="code-display">
@@ -374,7 +359,6 @@
                 </div>
             </div>
 
-            <!-- Track Tab (Phone B) -->
             <div id="trackTab" style="display: none;">
                 <div class="code-section">
                     <div class="input-group">
@@ -402,15 +386,14 @@
 
     <script>
         // ============================================
-        // PROFESSIONAL TWO-WAY RIDE TRACKER - STABLE MAP VERSION
-        // Fixed: Map zoom in/out issue - now stable
+        // FIXED: Map ab CODE ADD karte hi ACTUAL LOCATION par jayega
+        // New Delhi issue COMPLETELY FIXED
         // ============================================
         
         let map = null;
         let phoneAMarker = null;
         let phoneBMarker = null;
         let routeLine = null;
-        let routeArrows = null;
         
         let shareWatchId = null;
         let isSharing = false;
@@ -428,9 +411,8 @@
         let phoneBLocation = null;
         
         let isMapReady = false;
-        let initialBoundsSet = false;  // FIX: Track if bounds already set
+        let mapCentered = false;
         
-        // Device ID
         let deviceId = localStorage.getItem('ride_device_id');
         if (!deviceId) {
             deviceId = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
@@ -460,97 +442,15 @@
             return (meters / 1000).toFixed(2) + ' km';
         }
         
-        // Professional Map Initialization
-        function initMap() {
-            const defaultCenter = [28.6139, 77.2090];
-            map = L.map('map', {
-                zoomControl: true,
-                scrollWheelZoom: true,
-                doubleClickZoom: true,
-                boxZoom: true,
-                keyboard: true,
-                dragging: true
-            }).setView(defaultCenter, 14);
-            
-            // High-quality professional map tiles
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CartoDB',
-                subdomains: 'abcd',
-                maxZoom: 20,
-                minZoom: 3,
-                className: 'map-tiles'
-            }).addTo(map);
-            
-            // Add scale control
-            L.control.scale({ metric: true, imperial: false, position: 'bottomleft' }).addTo(map);
-            
-            // Phone A Marker (Red - Professional Style)
-            const redIcon = L.divIcon({
-                html: `<div style="position: relative;">
-                            <div style="background: #ff3333; width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 20px #ff3333; animation: pulseRed 1.5s infinite;"></div>
-                            <div style="background: #000000cc; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-top: 35px; white-space: nowrap; text-align: center;">📍 PHONE A</div>
-                        </div>`,
-                iconSize: [60, 70],
-                className: 'custom-icon',
-                popupAnchor: [0, -30]
-            });
-            
-            // Phone B Marker (Blue - Professional Style)
-            const blueIcon = L.divIcon({
-                html: `<div style="position: relative;">
-                            <div style="background: #3399ff; width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 20px #3399ff; animation: pulseBlue 1.5s infinite;"></div>
-                            <div style="background: #000000cc; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-top: 35px; white-space: nowrap; text-align: center;">📍 PHONE B</div>
-                        </div>`,
-                iconSize: [60, 70],
-                className: 'custom-icon',
-                popupAnchor: [0, -30]
-            });
-            
-            // Add CSS animations for markers
-            const style = document.createElement('style');
-            style.textContent = `
-                @keyframes pulseRed {
-                    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 51, 51, 0.7); }
-                    50% { box-shadow: 0 0 0 15px rgba(255, 51, 51, 0); }
-                }
-                @keyframes pulseBlue {
-                    0%, 100% { box-shadow: 0 0 0 0 rgba(51, 153, 255, 0.7); }
-                    50% { box-shadow: 0 0 0 15px rgba(51, 153, 255, 0); }
-                }
-            `;
-            document.head.appendChild(style);
-            
-            phoneAMarker = L.marker(defaultCenter, { icon: redIcon }).addTo(map);
-            phoneAMarker.bindPopup('<b>📱 PHONE A</b><br>Your current device location');
-            
-            phoneBMarker = L.marker(defaultCenter, { icon: blueIcon }).addTo(map);
-            phoneBMarker.bindPopup('<b>📱 PHONE B</b><br>Linked device location');
-            
-            // Route line with arrows (Professional)
-            routeLine = L.polyline([], { 
-                color: '#00ff88', 
-                weight: 5, 
-                opacity: 0.95,
-                lineCap: 'round',
-                lineJoin: 'round',
-                dashArray: '12, 8'
-            }).addTo(map);
-            
-            routeArrows = [];
-            isMapReady = true;
-            
-            // FIX: Only center on first load, not on every update
-            if (!initialBoundsSet && phoneALocation && phoneBLocation) {
-                centerMapOnBothPoints();
-            } else if (!initialBoundsSet && phoneALocation) {
-                map.setView([phoneALocation.lat, phoneALocation.lng], 14);
-                initialBoundsSet = true;
-            }
-            
-            updateMapDisplay();
+        // Center map on a specific location
+        function centerMapOnLocation(lat, lng, zoomLevel = 15) {
+            if (!isMapReady || !map) return;
+            map.setView([lat, lng], zoomLevel);
+            mapCentered = true;
+            console.log("✅ Map centered on location:", lat, lng);
         }
         
-        // FIX: Function to center map on both points (called only when tracking starts)
+        // Center map on both points
         function centerMapOnBothPoints() {
             if (!isMapReady || !map) return;
             
@@ -566,16 +466,89 @@
                 hasPoints = true;
             }
             
-            if (hasPoints && !initialBoundsSet) {
+            if (hasPoints && !mapCentered) {
                 map.fitBounds(bounds, { padding: [60, 60] });
-                initialBoundsSet = true;
+                mapCentered = true;
+                console.log("✅ Map centered on both points");
             }
+        }
+        
+        function initMap() {
+            // Start with world view instead of New Delhi
+            map = L.map('map', {
+                zoomControl: true,
+                scrollWheelZoom: true,
+                doubleClickZoom: true,
+                boxZoom: true,
+                keyboard: true,
+                dragging: true
+            }).setView([20, 0], 2);  // World view initially, NOT New Delhi!
+            
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CartoDB',
+                subdomains: 'abcd',
+                maxZoom: 20,
+                minZoom: 2,
+                className: 'map-tiles'
+            }).addTo(map);
+            
+            L.control.scale({ metric: true, imperial: false, position: 'bottomleft' }).addTo(map);
+            
+            const redIcon = L.divIcon({
+                html: `<div style="position: relative;">
+                            <div style="background: #ff3333; width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 20px #ff3333; animation: pulseRed 1.5s infinite;"></div>
+                            <div style="background: #000000cc; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-top: 35px; white-space: nowrap; text-align: center;">📍 PHONE A</div>
+                        </div>`,
+                iconSize: [60, 70],
+                className: 'custom-icon',
+                popupAnchor: [0, -30]
+            });
+            
+            const blueIcon = L.divIcon({
+                html: `<div style="position: relative;">
+                            <div style="background: #3399ff; width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 20px #3399ff; animation: pulseBlue 1.5s infinite;"></div>
+                            <div style="background: #000000cc; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-top: 35px; white-space: nowrap; text-align: center;">📍 PHONE B</div>
+                        </div>`,
+                iconSize: [60, 70],
+                className: 'custom-icon',
+                popupAnchor: [0, -30]
+            });
+            
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes pulseRed {
+                    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 51, 51, 0.7); }
+                    50% { box-shadow: 0 0 0 15px rgba(255, 51, 51, 0); }
+                }
+                @keyframes pulseBlue {
+                    0%, 100% { box-shadow: 0 0 0 0 rgba(51, 153, 255, 0.7); }
+                    50% { box-shadow: 0 0 0 15px rgba(51, 153, 255, 0); }
+                }
+            `;
+            document.head.appendChild(style);
+            
+            phoneAMarker = L.marker([0, 0], { icon: redIcon }).addTo(map);
+            phoneAMarker.bindPopup('<b>📱 PHONE A</b><br>Your current device location');
+            
+            phoneBMarker = L.marker([0, 0], { icon: blueIcon }).addTo(map);
+            phoneBMarker.bindPopup('<b>📱 PHONE B</b><br>Linked device location');
+            
+            routeLine = L.polyline([], { 
+                color: '#00ff88', 
+                weight: 5, 
+                opacity: 0.95,
+                lineCap: 'round',
+                lineJoin: 'round',
+                dashArray: '12, 8'
+            }).addTo(map);
+            
+            isMapReady = true;
+            updateMapDisplay();
         }
         
         function updateMapDisplay() {
             if (!isMapReady || !map) return;
             
-            // Update markers without changing map bounds
             if (phoneALocation && phoneALocation.lat && phoneALocation.lng) {
                 phoneAMarker.setLatLng([phoneALocation.lat, phoneALocation.lng]);
             }
@@ -584,7 +557,6 @@
                 phoneBMarker.setLatLng([phoneBLocation.lat, phoneBLocation.lng]);
             }
             
-            // Draw route line and calculate distance
             if (phoneALocation && phoneALocation.lat && phoneBLocation && phoneBLocation.lat) {
                 const path = [
                     [phoneALocation.lat, phoneALocation.lng],
@@ -605,9 +577,9 @@
                     const totalError = Math.round((phoneALocation.accuracy + phoneBLocation.accuracy) / 2);
                     accuracyMsg = `📍 Accuracy: ±${totalError}m`;
                 } else if (phoneALocation.accuracy) {
-                    accuracyMsg = `📍 Phone A accuracy: ±${Math.round(phoneALocation.accuracy)}m`;
+                    accuracyMsg = `📍 Accuracy: ±${Math.round(phoneALocation.accuracy)}m`;
                 } else if (phoneBLocation.accuracy) {
-                    accuracyMsg = `📍 Phone B accuracy: ±${Math.round(phoneBLocation.accuracy)}m`;
+                    accuracyMsg = `📍 Accuracy: ±${Math.round(phoneBLocation.accuracy)}m`;
                 }
                 document.getElementById('accuracyInfo').innerHTML = accuracyMsg;
             } else {
@@ -652,6 +624,11 @@
                     
                     phoneALocation = { lat: lat, lng: lng, accuracy: accuracy };
                     updateMapDisplay();
+                    
+                    // FIX: Center map on actual location when sharing starts
+                    if (!mapCentered && phoneALocation && phoneALocation.lat) {
+                        centerMapOnLocation(phoneALocation.lat, phoneALocation.lng, 14);
+                    }
                     
                     document.getElementById('shareLocation').innerHTML = 
                         `📍 Phone A: ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>🕐 ${timestamp} | ±${Math.round(accuracy)}m`;
@@ -710,9 +687,6 @@
             
             document.getElementById('shareStatus').innerHTML = '📍 Sharing + Tracking Phone B...';
             
-            // FIX: Reset bounds flag so map centers when both points appear
-            initialBoundsSet = false;
-            
             twoWayTrackingInterval = setInterval(() => {
                 if (isTwoWayTracking && otherPhoneCode) {
                     const locationStr = localStorage.getItem('ride_location_' + otherPhoneCode);
@@ -727,8 +701,7 @@
                                     accuracy: locationData.accuracy
                                 };
                                 updateMapDisplay();
-                                // Center only once when both points are available
-                                if (!initialBoundsSet && phoneALocation && phoneBLocation) {
+                                if (!mapCentered && phoneALocation && phoneBLocation) {
                                     centerMapOnBothPoints();
                                 }
                             }
@@ -768,6 +741,11 @@
                     document.getElementById('trackLocation').innerHTML = 
                         `📍 Phone B: ${phoneALocation.lat.toFixed(6)}, ${phoneALocation.lng.toFixed(6)}`;
                     
+                    // FIX: Center map on actual location when tracking starts
+                    if (!mapCentered && isTracking && phoneALocation && phoneALocation.lat) {
+                        centerMapOnLocation(phoneALocation.lat, phoneALocation.lng, 14);
+                    }
+                    
                     if (isTracking && isMapReady) updateMapDisplay();
                 },
                 (error) => console.log("Error:", error),
@@ -801,9 +779,6 @@
             trackedCode = code;
             localStorage.setItem('ride_tracking_code', code);
             
-            // FIX: Reset bounds flag so map centers when tracking starts
-            initialBoundsSet = false;
-            
             document.getElementById('trackDot').classList.add('live');
             document.getElementById('trackStatus').innerHTML = `🟢 Live tracking Phone A (${code})...`;
             document.getElementById('stopTrackBtn').style.display = 'block';
@@ -826,8 +801,7 @@
                                 document.getElementById('trackStatus').innerHTML = 
                                     `🟢 Live tracking · Updated: ${locationData.timestamp || 'now'}`;
                                 updateMapDisplay();
-                                // Center only once when both points are available
-                                if (!initialBoundsSet && phoneALocation && phoneBLocation) {
+                                if (!mapCentered && phoneALocation && phoneBLocation) {
                                     centerMapOnBothPoints();
                                 }
                             } else {
@@ -862,10 +836,9 @@
             
             routeLine.setLatLngs([]);
             updateMapDisplay();
-            initialBoundsSet = false;
+            mapCentered = false;
         }
         
-        // ========== TAB SWITCHING ==========
         function switchTab(tabName) {
             const shareTab = document.getElementById('shareTab');
             const trackTab = document.getElementById('trackTab');
@@ -951,7 +924,6 @@
         startGettingMyLocation();
         initMap();
         
-        // FIX: Only update markers, not map bounds every second
         setInterval(() => {
             if (isMapReady) updateMapDisplay();
         }, 1000);
@@ -979,7 +951,7 @@
             }
         });
         
-        console.log("✅ Live Ride Tracker - Professional Edition Ready! (Map Zoom Stable)");
+        console.log("✅ Live Ride Tracker - Fixed! Map will center on actual location when code is added.");
     </script>
 </body>
 </html>
