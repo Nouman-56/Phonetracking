@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>Live Ride Tracker · Professional Two-Way Live Distance & Map</title>
-    <!-- Leaflet CSS + JS (Free OpenStreetMap - Professional Tiles) -->
+    <!-- Leaflet CSS + JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
@@ -336,7 +336,7 @@
             <div id="shareTab">
                 <div class="code-section">
                     <div class="code-display">
-                        <div style="font-size: 0.7rem; opacity: 0.7;">🔐 YOUR UNIQUE TRACKING CODE</div>
+                        <div style="font-size: 0.7rem; opacity: 0.7;">🔐 YOUR PERMANENT TRACKING CODE</div>
                         <div class="code-number" id="myCode">------</div>
                         <button class="copy-btn" id="copyCodeBtn">📋 Copy Code & Share</button>
                     </div>
@@ -386,8 +386,11 @@
 
     <script>
         // ============================================
-        // FIXED: Map ab CODE ADD karte hi ACTUAL LOCATION par jayega
-        // New Delhi issue COMPLETELY FIXED
+        // FIXED: 
+        // 1. Code PERMANENT hai - bar bar change nahi hoga
+        // 2. Map actual location par center hoga
+        // 3. Red aur Blue dot ke beech green line
+        // 4. Dono devices ki location sahi show hogi
         // ============================================
         
         let map = null;
@@ -419,8 +422,14 @@
             localStorage.setItem('ride_device_id', deviceId);
         }
         
-        function generateCode() {
-            return Math.floor(100000 + Math.random() * 900000).toString();
+        // FIX 1: Code permanent rahega - ek baar generate ho ke save ho jayega
+        function getOrCreateCode() {
+            let savedCode = localStorage.getItem('ride_my_permanent_code');
+            if (!savedCode) {
+                savedCode = Math.floor(100000 + Math.random() * 900000).toString();
+                localStorage.setItem('ride_my_permanent_code', savedCode);
+            }
+            return savedCode;
         }
         
         function calculateDistance(lat1, lng1, lat2, lng2) {
@@ -442,39 +451,9 @@
             return (meters / 1000).toFixed(2) + ' km';
         }
         
-        // Center map on a specific location
-        function centerMapOnLocation(lat, lng, zoomLevel = 15) {
-            if (!isMapReady || !map) return;
-            map.setView([lat, lng], zoomLevel);
-            mapCentered = true;
-            console.log("✅ Map centered on location:", lat, lng);
-        }
-        
-        // Center map on both points
-        function centerMapOnBothPoints() {
-            if (!isMapReady || !map) return;
-            
-            let bounds = L.latLngBounds();
-            let hasPoints = false;
-            
-            if (phoneALocation && phoneALocation.lat && phoneALocation.lng) {
-                bounds.extend([phoneALocation.lat, phoneALocation.lng]);
-                hasPoints = true;
-            }
-            if (phoneBLocation && phoneBLocation.lat && phoneBLocation.lng) {
-                bounds.extend([phoneBLocation.lat, phoneBLocation.lng]);
-                hasPoints = true;
-            }
-            
-            if (hasPoints && !mapCentered) {
-                map.fitBounds(bounds, { padding: [60, 60] });
-                mapCentered = true;
-                console.log("✅ Map centered on both points");
-            }
-        }
-        
         function initMap() {
-            // Start with world view instead of New Delhi
+            // FIX 2: Map ko user ki actual location par center karne ke liye pehle location lein
+            // Initially show loading state, then center on user
             map = L.map('map', {
                 zoomControl: true,
                 scrollWheelZoom: true,
@@ -482,7 +461,7 @@
                 boxZoom: true,
                 keyboard: true,
                 dragging: true
-            }).setView([20, 0], 2);  // World view initially, NOT New Delhi!
+            }).setView([0, 0], 2);
             
             L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; CartoDB',
@@ -496,22 +475,22 @@
             
             const redIcon = L.divIcon({
                 html: `<div style="position: relative;">
-                            <div style="background: #ff3333; width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 20px #ff3333; animation: pulseRed 1.5s infinite;"></div>
-                            <div style="background: #000000cc; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-top: 35px; white-space: nowrap; text-align: center;">📍 PHONE A</div>
+                            <div style="background: #ff3333; width: 36px; height: 36px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 20px #ff3333; animation: pulseRed 1.5s infinite;"></div>
+                            <div style="background: #000000cc; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-top: 40px; white-space: nowrap; text-align: center;">📍 PHONE A</div>
                         </div>`,
-                iconSize: [60, 70],
+                iconSize: [60, 80],
                 className: 'custom-icon',
-                popupAnchor: [0, -30]
+                popupAnchor: [0, -35]
             });
             
             const blueIcon = L.divIcon({
                 html: `<div style="position: relative;">
-                            <div style="background: #3399ff; width: 32px; height: 32px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 20px #3399ff; animation: pulseBlue 1.5s infinite;"></div>
-                            <div style="background: #000000cc; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-top: 35px; white-space: nowrap; text-align: center;">📍 PHONE B</div>
+                            <div style="background: #3399ff; width: 36px; height: 36px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 20px #3399ff; animation: pulseBlue 1.5s infinite;"></div>
+                            <div style="background: #000000cc; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; margin-top: 40px; white-space: nowrap; text-align: center;">📍 PHONE B</div>
                         </div>`,
-                iconSize: [60, 70],
+                iconSize: [60, 80],
                 className: 'custom-icon',
-                popupAnchor: [0, -30]
+                popupAnchor: [0, -35]
             });
             
             const style = document.createElement('style');
@@ -538,12 +517,10 @@
                 weight: 5, 
                 opacity: 0.95,
                 lineCap: 'round',
-                lineJoin: 'round',
-                dashArray: '12, 8'
+                lineJoin: 'round'
             }).addTo(map);
             
             isMapReady = true;
-            updateMapDisplay();
         }
         
         function updateMapDisplay() {
@@ -557,6 +534,7 @@
                 phoneBMarker.setLatLng([phoneBLocation.lat, phoneBLocation.lng]);
             }
             
+            // FIX 3: Red aur Blue dot ke beech green line
             if (phoneALocation && phoneALocation.lat && phoneBLocation && phoneBLocation.lat) {
                 const path = [
                     [phoneALocation.lat, phoneALocation.lng],
@@ -585,6 +563,20 @@
             } else {
                 routeLine.setLatLngs([]);
                 document.getElementById('distanceCard').style.display = 'none';
+            }
+            
+            // Center map on both points if not already centered
+            if (!mapCentered && phoneALocation && phoneALocation.lat && phoneBLocation && phoneBLocation.lat) {
+                let bounds = L.latLngBounds();
+                bounds.extend([phoneALocation.lat, phoneALocation.lng]);
+                bounds.extend([phoneBLocation.lat, phoneBLocation.lng]);
+                map.fitBounds(bounds, { padding: [60, 60] });
+                mapCentered = true;
+                console.log("✅ Map centered on both devices");
+            } else if (!mapCentered && phoneALocation && phoneALocation.lat) {
+                map.setView([phoneALocation.lat, phoneALocation.lng], 14);
+                mapCentered = true;
+                console.log("✅ Map centered on Phone A");
             }
         }
         
@@ -618,17 +610,11 @@
                     };
                     
                     localStorage.setItem('ride_location_' + myCode, JSON.stringify(locationData));
-                    localStorage.setItem('ride_sharing_active', 'true');
-                    localStorage.setItem('ride_active_code', myCode);
+                    localStorage.setItem('ride_sharing_active_' + myCode, 'true');
                     localStorage.setItem('ride_device_' + myCode, deviceId);
                     
                     phoneALocation = { lat: lat, lng: lng, accuracy: accuracy };
                     updateMapDisplay();
-                    
-                    // FIX: Center map on actual location when sharing starts
-                    if (!mapCentered && phoneALocation && phoneALocation.lat) {
-                        centerMapOnLocation(phoneALocation.lat, phoneALocation.lng, 14);
-                    }
                     
                     document.getElementById('shareLocation').innerHTML = 
                         `📍 Phone A: ${lat.toFixed(6)}, ${lng.toFixed(6)}<br>🕐 ${timestamp} | ±${Math.round(accuracy)}m`;
@@ -654,7 +640,7 @@
                 shareWatchId = null;
             }
             isSharing = false;
-            localStorage.setItem('ride_sharing_active', 'false');
+            localStorage.setItem('ride_sharing_active_' + myCode, 'false');
             localStorage.removeItem('ride_location_' + myCode);
             
             document.getElementById('shareDot').classList.remove('live');
@@ -666,7 +652,7 @@
             stopTwoWayTracking();
         }
         
-        // ========== TWO-WAY TRACKING ==========
+        // ========== TWO-WAY TRACKING (Phone A tracks Phone B) ==========
         function startTwoWayTracking(otherCode) {
             if (!otherCode || otherCode.length !== 6) {
                 alert("Please enter a valid 6-digit code of Phone B");
@@ -701,9 +687,6 @@
                                     accuracy: locationData.accuracy
                                 };
                                 updateMapDisplay();
-                                if (!mapCentered && phoneALocation && phoneBLocation) {
-                                    centerMapOnBothPoints();
-                                }
                             }
                         } catch(e) {}
                     }
@@ -741,11 +724,6 @@
                     document.getElementById('trackLocation').innerHTML = 
                         `📍 Phone B: ${phoneALocation.lat.toFixed(6)}, ${phoneALocation.lng.toFixed(6)}`;
                     
-                    // FIX: Center map on actual location when tracking starts
-                    if (!mapCentered && isTracking && phoneALocation && phoneALocation.lat) {
-                        centerMapOnLocation(phoneALocation.lat, phoneALocation.lng, 14);
-                    }
-                    
                     if (isTracking && isMapReady) updateMapDisplay();
                 },
                 (error) => console.log("Error:", error),
@@ -760,16 +738,10 @@
                 return false;
             }
             
-            const activeCode = localStorage.getItem('ride_active_code');
-            const sharingActive = localStorage.getItem('ride_sharing_active');
-            
-            if (activeCode !== code) {
-                alert("❌ Invalid code! Make sure Phone A is sharing location.");
-                return false;
-            }
+            const sharingActive = localStorage.getItem('ride_sharing_active_' + code);
             
             if (sharingActive !== 'true') {
-                alert("⚠️ Phone A is not sharing location right now.");
+                alert("❌ Invalid code or Phone A is not sharing location right now.");
                 return false;
             }
             
@@ -778,12 +750,12 @@
             isTracking = true;
             trackedCode = code;
             localStorage.setItem('ride_tracking_code', code);
+            mapCentered = false;
             
             document.getElementById('trackDot').classList.add('live');
             document.getElementById('trackStatus').innerHTML = `🟢 Live tracking Phone A (${code})...`;
             document.getElementById('stopTrackBtn').style.display = 'block';
             document.getElementById('trackBtn').style.display = 'none';
-            document.getElementById('distanceCard').style.display = 'block';
             
             trackingInterval = setInterval(() => {
                 if (isTracking && trackedCode) {
@@ -801,9 +773,6 @@
                                 document.getElementById('trackStatus').innerHTML = 
                                     `🟢 Live tracking · Updated: ${locationData.timestamp || 'now'}`;
                                 updateMapDisplay();
-                                if (!mapCentered && phoneALocation && phoneBLocation) {
-                                    centerMapOnBothPoints();
-                                }
                             } else {
                                 document.getElementById('trackStatus').innerHTML = `⚠️ Waiting for Phone A location...`;
                             }
@@ -900,12 +869,12 @@
         });
         
         // ========== INITIALIZE ==========
-        myCode = generateCode();
+        myCode = getOrCreateCode();
         document.getElementById('myCode').innerText = myCode;
-        localStorage.setItem('ride_active_code', myCode);
         localStorage.setItem('ride_device_' + myCode, deviceId);
         
-        if (localStorage.getItem('ride_sharing_active') === 'true') {
+        // Check if already sharing
+        if (localStorage.getItem('ride_sharing_active_' + myCode) === 'true') {
             startSharingLocation();
         }
         
@@ -951,7 +920,7 @@
             }
         });
         
-        console.log("✅ Live Ride Tracker - Fixed! Map will center on actual location when code is added.");
+        console.log("✅ Live Ride Tracker - Fully Fixed! Code is PERMANENT, Map shows actual location!");
     </script>
 </body>
 </html>
